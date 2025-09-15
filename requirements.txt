@@ -1,7 +1,7 @@
-fastapi
-uvicorn
-requests
-opencv-python-headless
-ultralytics
-numpy
-paho-mqtt
+fastapi==0.115.0
+uvicorn==0.30.1
+requests==2.32.3
+opencv-python-headless==4.8.1.78
+ultralytics==8.0.196
+numpy==1.26.4
+paho-mqtt==1.6.1

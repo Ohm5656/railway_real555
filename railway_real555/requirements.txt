@@ -1,21 +1,7 @@
-# FastAPI & Server
 fastapi
-uvicorn[standard]
-
-# AI Models
+uvicorn
+requests
+opencv-python-headless
 ultralytics
-opencv-python
 numpy
-
-# Tracker สำหรับ analyze_video
-deep-sort-realtime
-
-# Google Gemini API
-google-generativeai
-
-# MQTT Communication
 paho-mqtt
-
-# Utils
-python-multipart
-aiofiles

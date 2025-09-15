@@ -1,7 +1,0 @@
-fastapi
-uvicorn
-requests
-opencv-python-headless
-ultralytics
-numpy
-paho-mqtt

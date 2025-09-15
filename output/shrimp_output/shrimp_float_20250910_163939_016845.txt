@@ -1,0 +1,5 @@
+🦐 พบกุ้งลอยผิวน้ำ 4 ตัว
+shrimp float id1
+shrimp float id2
+shrimp float id3
+shrimp float id4

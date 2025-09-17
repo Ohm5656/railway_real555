@@ -3,7 +3,9 @@ uvicorn[standard]==0.29.0
 requests==2.31.0
 numpy==1.26.4
 pillow==10.2.0
-ultralytics==8.1.47
+torch==2.5.1
+torchvision==0.20.1
+ultralytics==8.2.84
 deep-sort-realtime==1.3.2
 paho-mqtt==1.6.1
 google-generativeai==0.3.2
@@ -11,3 +13,4 @@ aiofiles==23.2.1
 imageio==2.34.1
 # ต้องอยู่ท้ายสุดเสมอ เพื่อบังคับให้ใช้ตัวนี้
 opencv-python-headless==4.10.0.84
+

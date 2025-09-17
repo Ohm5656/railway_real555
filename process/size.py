@@ -55,7 +55,6 @@ def get_cumulative_survival(total_larvae, weight_avg):
 
 # ===================== Main Function =====================
 def analyze_shrimp(input_path, total_larvae=None, pond_number=None,
-                   known_lengths=None, known_weights=None,
                    a_weight=None, b_weight=None, pixel_per_cm=13):
     print("\n🚀 เริ่มการวิเคราะห์กุ้ง (size.py)")
     DEFAULT_A, DEFAULT_B = 0.0089, 3.0751

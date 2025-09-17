@@ -1,16 +1,20 @@
 import cv2
 import os
 from ultralytics import YOLO
-from utils.loader_model import download_and_extract_model
 
-MODEL_DIR = download_and_extract_model()
-model_path = os.environ.get("MODEL_WATER", os.path.join(MODEL_DIR, "water_class.pt"))
+# โหลดโมเดลวิเคราะห์สีน้ำ
+model_path = os.environ.get("MODEL_WATER", "./Model/water_class.pt")
 model = YOLO(model_path)
 
+# สร้างโฟลเดอร์ output ถ้ายังไม่มี
 output_folder = os.environ.get("OUTPUT_WATER", "./output/water_output")
 os.makedirs(output_folder, exist_ok=True)
 
+
 def analyze_water(image_path: str, original_name: str = None):
+    """
+    วิเคราะห์ภาพคุณภาพสีน้ำ
+    """
     image = cv2.imread(image_path)
     if image is None:
         raise ValueError(f"❌ ไม่พบภาพที่ path: {image_path}")

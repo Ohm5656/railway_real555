@@ -4,17 +4,13 @@ from ultralytics import YOLO
 import os
 from datetime import datetime
 import numpy as np
-from utils.loader_model import download_and_extract_model
 
-# ===================== โหลดโมเดล =====================
-MODEL_DIR = download_and_extract_model()
-# ใช้ ENV กำหนด path ได้ ถ้าไม่มีจะ default ไปที่โมเดลในโฟลเดอร์ที่แตกจาก Model.zip
-model_path = os.environ.get("MODEL_SIZE", os.path.join(MODEL_DIR, "shrimp_keypoint6/weights/best.pt"))
+# ===================== ตั้งค่าโมเดล YOLO =====================
+model_path = os.environ.get("MODEL_SIZE", "./Model/size.pt")
 model = YOLO(model_path)
 class_id = 0
 
 
-# ===================== Helper Function =====================
 def get_thai_datetime_string(dt):
     day, month, year = dt.day, dt.month, dt.year + 543
     time_str = dt.strftime("%H:%M")
@@ -53,13 +49,13 @@ def get_cumulative_survival(total_larvae, weight_avg):
     return survival_rate_cumulative, int(n_current)
 
 
-# ===================== Main Function =====================
 def analyze_shrimp(input_path, total_larvae=None, pond_number=None,
+                   known_lengths=None, known_weights=None,
                    a_weight=None, b_weight=None, pixel_per_cm=13):
-    print("\n🚀 เริ่มการวิเคราะห์กุ้ง (size.py)")
+    print("\n🚀 เริ่มการวิเคระกุ้ง")
     DEFAULT_A, DEFAULT_B = 0.0089, 3.0751
     a, b = a_weight or DEFAULT_A, b_weight or DEFAULT_B
-    print(f"📘 ใช้ค่า a={a:.5f}, b={b:.3f} (มาตรฐานไทย)")
+    print(f"📘 ใช้ DEFAULT a={a:.5f}, b={b:.3f} (มาตรฐานไทย)")
 
     # ===================== PATH =====================
     output_dir_output = os.environ.get("OUTPUT_SIZE", "./output/size_output")
@@ -74,25 +70,19 @@ def analyze_shrimp(input_path, total_larvae=None, pond_number=None,
     output_img_path_output = os.path.join(output_dir_output, f"{filename}_{timestamp}.jpg")
     output_txt_path_output = os.path.join(output_dir_output, f"{filename}_{timestamp}.txt")
 
-    # ===================== RUN YOLO =====================
     results = model(input_path)
     img = cv2.imread(input_path)
     shrimp_data = []
 
     for result in results:
-        if result.keypoints is None or result.boxes is None: 
-            continue
+        if result.keypoints is None or result.boxes is None: continue
         keypoints = result.keypoints.xy.cpu().numpy()
         boxes_cls = result.boxes.cls.cpu().numpy() if result.boxes.cls is not None else []
         boxes_conf = result.boxes.conf.cpu().numpy() if result.boxes.conf is not None else []
-
         for i, kp in enumerate(keypoints):
-            if i >= len(boxes_cls) or i >= len(boxes_conf): 
-                continue
-            if int(boxes_cls[i]) != class_id or boxes_conf[i] <= 0.5: 
-                continue
-            if len(kp) < 3: 
-                continue
+            if i >= len(boxes_cls) or i >= len(boxes_conf): continue
+            if int(boxes_cls[i]) != class_id or boxes_conf[i] <= 0.5: continue
+            if len(kp) < 3: continue
 
             head, middle, tail = kp[0], kp[1], kp[2]
             dist = lambda p1,p2: math.sqrt((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2)
@@ -105,7 +95,6 @@ def analyze_shrimp(input_path, total_larvae=None, pond_number=None,
             cv2.line(img,(int(head[0]),int(head[1])),(int(middle[0]),int(middle[1])),(255,0,0),2)
             cv2.line(img,(int(middle[0]),int(middle[1])),(int(tail[0]),int(tail[1])),(255,0,0),2)
 
-    # ===================== สรุปผล =====================
     shrimp_data.sort(key=lambda p:(p[1],p[0]))
     output_lines = []
     print(f"\n🦐 พบกุ้งทั้งหมด: {len(shrimp_data)} ตัว")
@@ -138,7 +127,6 @@ def analyze_shrimp(input_path, total_larvae=None, pond_number=None,
         f" - ตอนเย็น: {evening_feed/1000:.2f} kg",
     ]
 
-    # ===================== Save Output =====================
     cv2.imwrite(output_img_path_output, img)
     with open(output_txt_path_output,"w",encoding="utf-8") as f:
         f.write("\n".join(summary_lines))

@@ -1,16 +1,20 @@
 import cv2
 from ultralytics import YOLO
 import os
-from utils.loader_model import download_and_extract_model
 
-MODEL_DIR = download_and_extract_model()
-model_path = os.environ.get("MODEL_SHRIMP", os.path.join(MODEL_DIR, "shrimp.pt"))
+# โหลดโมเดล YOLO สำหรับจับกุ้งลอยผิวน้ำ
+model_path = os.environ.get("MODEL_SHRIMP", "./Model/shrimp.pt")
 model = YOLO(model_path)
 
+# ที่เก็บผลลัพธ์
 output_folder = os.environ.get("OUTPUT_SHRIMP", "./output/shrimp_output")
 os.makedirs(output_folder, exist_ok=True)
 
+
 def analyze_kuny(image_path, original_name: str = None):
+    """
+    วิเคราะห์ภาพกุ้งลอยผิวน้ำ
+    """
     image = cv2.imread(image_path)
     if image is None:
         raise ValueError(f"❌ ไม่พบภาพที่ path: {image_path}")
@@ -29,7 +33,8 @@ def analyze_kuny(image_path, original_name: str = None):
 
                 x1,y1,x2,y2 = box.xyxy[0].int().tolist()
                 cv2.rectangle(image,(x1,y1),(x2,y2),(255,0,0),2)
-                cv2.putText(image,label,(x1,y1-10),cv2.FONT_HERSHEY_SIMPLEX,2.0,(255,0,0),10)
+                cv2.putText(image,label,(x1,y1-10),
+                            cv2.FONT_HERSHEY_SIMPLEX,2.0,(255,0,0),10)
 
     header_text, color = ("HAVE SHRIMPS",(0,0,255)) if shrimp_count>0 else ("NO SHRIMP",(0,255,0))
     cv2.putText(image,header_text,(20,50),cv2.FONT_HERSHEY_SIMPLEX,1.5,color,5)

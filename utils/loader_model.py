@@ -1,29 +1,29 @@
 import os
-import requests
-import zipfile
 
-# Path สำหรับเก็บไฟล์โมเดล
-MODEL_DIR = "/data/Model"
-ZIP_PATH = "/data/Model.zip"
+# Path หลักที่เก็บโมเดลใน Railway Volume
+BASE_MODEL_DIR = "/data/Model"
 
-# Google Drive File ID ของ Model.zip
-GDRIVE_ID = os.getenv("MODEL_ZIP_ID", "1oR_6mOC3eBWy9gC9VOQRPaOTVrR8Uffs")
+# ชื่อไฟล์โมเดลที่คุณจะอัปโหลดไปใน Volume
+MODEL_FILES = {
+    "size": "size.pt",   # โมเดลวัดขนาดกุ้ง
+    "din": "din.pt",                              # โมเดลตรวจการเคลื่อนไหว (กุ้งดิ้น)
+    "shrimp": "shrimp.pt",                        # โมเดลตรวจจับกุ้งลอย
+    "water": "water_class.pt"                     # โมเดลวิเคราะห์น้ำ
+}
 
-def download_and_extract_model():
-    os.makedirs(MODEL_DIR, exist_ok=True)
-
-    # ถ้า Model.zip ยังไม่มี → โหลดจาก Google Drive
-    if not os.path.exists(ZIP_PATH):
-        print("📥 Downloading Model.zip from Google Drive...")
-        url = f"https://drive.google.com/uc?id={GDRIVE_ID}&export=download"
-        r = requests.get(url)
-        with open(ZIP_PATH, "wb") as f:
-            f.write(r.content)
-
-    # แตกไฟล์
-    print("📦 Extracting Model.zip...")
-    with zipfile.ZipFile(ZIP_PATH, "r") as zip_ref:
-        zip_ref.extractall(MODEL_DIR)
-
-    print("✅ Models ready in:", MODEL_DIR)
-    return MODEL_DIR
+def get_model_path(model_key: str) -> str:
+    """
+    คืนค่า path ของโมเดลตาม key
+    :param model_key: เช่น "size", "din", "shrimp", "water"
+    :return: path เต็มของโมเดล เช่น /data/Model/shrimp_keypoint6/weights/best.pt
+    """
+    if model_key not in MODEL_FILES:
+        raise ValueError(f"❌ Unknown model key: {model_key}. ใช้ได้แค่ {list(MODEL_FILES.keys())}")
+    
+    model_path = os.path.join(BASE_MODEL_DIR, MODEL_FILES[model_key])
+    
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"❌ Model file not found: {model_path}\n"
+                                f"กรุณาอัปโหลดไฟล์ไปที่ Railway Volume (/data/Model)")
+    print(f"✅ Using model: {model_path}")
+    return model_path

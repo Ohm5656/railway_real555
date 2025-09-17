@@ -11,6 +11,5 @@ paho-mqtt==1.6.1
 google-generativeai==0.3.2
 aiofiles==23.2.1
 imageio==2.34.1
-# ต้องอยู่ท้ายสุดเสมอ เพื่อบังคับให้ใช้ตัวนี้
+python-multipart==0.0.9   # ✅ ต้องมีเพื่อรองรับ File Upload ของ FastAPI
 opencv-python-headless==4.10.0.84
-

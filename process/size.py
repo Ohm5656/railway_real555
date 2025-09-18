@@ -9,16 +9,12 @@ import numpy as np
 model_path = os.environ.get("MODEL_SIZE", os.path.join("Model", "size.pt"))
 model = YOLO(model_path)
 class_id = 0
-...
-# ที่เหลือใช้โค้ดของคุณตามเดิม (ไม่ต้องมี download_and_extract_model อีก)
-
 
 # ===================== Helper Function =====================
 def get_thai_datetime_string(dt):
     day, month, year = dt.day, dt.month, dt.year + 543
     time_str = dt.strftime("%H:%M")
     return f"{day:02d}/{month:02d}/{year} เวลา {time_str}"
-
 
 def get_feed_plan(weight_avg):
     if weight_avg <= 2: return 6.0, 3
@@ -31,14 +27,18 @@ def get_feed_plan(weight_avg):
     elif weight_avg <= 50: return 2.0, 6
     else: return 2.0, 6
 
-
 def calc_feed_per_day(avg_weight, n_alive, feed_percent):
     total_biomass = avg_weight * n_alive
     feed_amount = total_biomass * (feed_percent / 100)
     return feed_amount, total_biomass
 
-
 def get_cumulative_survival(total_larvae, weight_avg):
+    if total_larvae is None:
+        total_larvae = 10000  # ค่า default
+
+    if weight_avg <= 0:  # ป้องกัน division error
+        return 1.0, total_larvae
+
     survival_table = [(2,1.00),(5,0.97),(10,0.95),(20,0.93),(30,0.90),(50,0.88),(9999,0.85)]
     n_current = total_larvae
     print("\n📊 คำนวนอัตรารอดแต่ละช่วง (สะสม):")
@@ -50,7 +50,6 @@ def get_cumulative_survival(total_larvae, weight_avg):
     print(f"✅ Survival Rate (cumulative): {survival_rate_cumulative*100:.2f}%")
     print(f"✅ กุ้งรอดสะสม: {int(n_current)} ตัว\n")
     return survival_rate_cumulative, int(n_current)
-
 
 # ===================== Main Function =====================
 def analyze_shrimp(input_path, total_larvae=None, pond_number=None,
@@ -81,7 +80,7 @@ def analyze_shrimp(input_path, total_larvae=None, pond_number=None,
     for result in results:
         if result.keypoints is None or result.boxes is None: 
             continue
-        keypoints = result.keypoints.xy.cpu().numpy()
+        keypoints = result.keypoints.xy.cpu().numpy() if result.keypoints.xy is not None else []
         boxes_cls = result.boxes.cls.cpu().numpy() if result.boxes.cls is not None else []
         boxes_conf = result.boxes.conf.cpu().numpy() if result.boxes.conf is not None else []
 
@@ -95,8 +94,8 @@ def analyze_shrimp(input_path, total_larvae=None, pond_number=None,
 
             head, middle, tail = kp[0], kp[1], kp[2]
             dist = lambda p1,p2: math.sqrt((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2)
-            total_length_cm = (dist(head, middle)+dist(middle, tail)) / pixel_per_cm
-            weight = a * (total_length_cm ** b)
+            total_length_cm = (dist(head, middle)+dist(middle, tail)) / pixel_per_cm if pixel_per_cm > 0 else 0
+            weight = a * (total_length_cm ** b) if total_length_cm > 0 else 0
             shrimp_data.append((head[0], head[1], total_length_cm, weight))
 
             for (x,y) in [head,middle,tail]:
@@ -107,6 +106,7 @@ def analyze_shrimp(input_path, total_larvae=None, pond_number=None,
     # ===================== สรุปผล =====================
     shrimp_data.sort(key=lambda p:(p[1],p[0]))
     output_lines = []
+
     print(f"\n🦐 พบกุ้งทั้งหมด: {len(shrimp_data)} ตัว")
     for idx,(x,y,length_cm,weight_g) in enumerate(shrimp_data,start=1):
         print(f" - Shrimp {idx}: {length_cm:.2f} cm / {weight_g:.2f} g")
@@ -116,6 +116,7 @@ def analyze_shrimp(input_path, total_larvae=None, pond_number=None,
 
     count = len(shrimp_data)
     avg_weight = np.mean([w for *_,w in shrimp_data]) if shrimp_data else 0
+
     survival_rate_cumulative, n_alive = get_cumulative_survival(total_larvae, avg_weight)
 
     feed_percent, feed_size = get_feed_plan(avg_weight)

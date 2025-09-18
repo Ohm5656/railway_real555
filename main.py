@@ -330,7 +330,6 @@ async def receive_sensor_data(request: Request):
 
 # =========================
 # 1) CONFIG: โฟลเดอร์แหล่งข้อมูล (แก้ ENV ได้)
-# =========================
 import asyncio
 
 # =========================
@@ -377,8 +376,10 @@ def _pick_url_maybe_list(v):
     return v
 
 def _send_json_to(url: str, data: dict):
+    """ส่ง JSON ไปยังปลายทาง ถ้าไม่ได้ตั้งค่า URL จะไม่ส่ง"""
     try:
-        if not url:
+        if not url:  # ✅ ป้องกันไม่ให้ยิงไปถ้าไม่มี URL
+            print("ℹ️ Skip push: No URL set")
             return
         r = requests.post(url, json=data, timeout=6)
         if r.status_code == 200:
@@ -513,6 +514,7 @@ async def loop_build_and_push(pond_id: int):
             status_json = build_pond_status_json(pond_id)
             size_json   = build_shrimp_size_json(pond_id)
 
+            # ✅ ส่งก็ต่อเมื่อมีการตั้งค่า ENV ไว้
             if APP_STATUS_URL:
                 _send_json_to(APP_STATUS_URL, status_json)
             if APP_SIZE_URL:
@@ -522,6 +524,7 @@ async def loop_build_and_push(pond_id: int):
             print("❌ Loop error:", e)
 
         await asyncio.sleep(5)
+
 
 @app.on_event("startup")
 async def start_background():

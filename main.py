@@ -17,8 +17,7 @@ import math
 import paho.mqtt.client as mqtt
 
 # =============== เปลี่ยนมาใช้ Gemini ===============
-import google.generativeai as genai
-genai.configure(api_key="YOUR_GOOGLE_API_KEY")   # ใส่ Google AI Studio API KEY ที่นี่
+import google.generativeai as genai  # ใส่ Google AI Studio API KEY ที่นี่
 
 # =============== FastAPI และ CORS ====================
 app = FastAPI()
@@ -299,33 +298,6 @@ async def receive_stock_json(request: Request):
     print(f"✅ Saved pond JSON data: {file_path}")
     return {"status": "success", "saved_file": file_path}
 
-# ================= Gemini Q&A API ====================
-@app.post("/ask")
-async def ask_bot(request: Request):
-    try:
-        data = await request.json()
-        question = data.get("question", "").strip()
-        if not question:
-            return {"answer": "กรุณาพิมพ์คำถาม"}
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON")
-
-    try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        prompt = f"""
-คุณคือผู้เชี่ยวชาญด้านกุ้งก้ามกรามและเกษตรกรไทย
-- คุณชื่อShrimpSenseเท่านั้น เวลาตอบคำถามต้องขึ้นต้นด้วยด้วยว่า"สวัสดีครับพวกเราShrimpSense" 
--ถ้าถามเรื่องเกี่ยวกับการยกยอเนี่ย ให้ตอบประมาณว่า การยกยอปกติจะยก2ครั้งช่วงเช้าและเย็น
-***ใช้ภาษาไทยง่ายๆ เหมือนคุยกับชาวบ้าน***
-
-{question}
-"""
-        response = model.generate_content(prompt)
-        answer = response.text.strip()
-    except Exception as e:
-        answer = f"เกิดข้อผิดพลาดกับ Gemini API: {e}"
-    
-    return {"answer": answer}
 
 SENSOR_DIR = os.environ.get("SENSOR_DIR", "/data/local_storage/sensor")  # [Railway]
 os.makedirs(SENSOR_DIR, exist_ok=True)  # [Railway]

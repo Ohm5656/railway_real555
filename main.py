@@ -15,6 +15,7 @@ from local_storage import LocalStorage
 
 import math
 import paho.mqtt.client as mqtt
+import uvicorn
 
 
 # =============== FastAPI และ CORS ====================
@@ -335,7 +336,7 @@ import asyncio
 # =========================
 # 1) CONFIG
 # =========================
-BASE_LOCAL = os.environ.get("LOCAL_STORAGE_ROOT", "./local_storage")
+BASE_LOCAL = os.environ.get("LOCAL_STORAGE_ROOT", "/data/local_storage")
 
 
 FS_SENSOR_DIR = os.path.join(BASE_LOCAL, "sensor")
@@ -550,3 +551,8 @@ def get_size(pond_id: int):
         with open(SHRIMP_SIZE_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     return {"error": "no shrimp_size.json yet"}
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))  # Railway จะใส่ค่า PORT ให้อัตโนมัติ
+    uvicorn.run("main:app", host="0.0.0.0", port=port)

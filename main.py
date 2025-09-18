@@ -337,7 +337,8 @@ import asyncio
 # 1) CONFIG
 # =========================
 BASE_LOCAL = os.environ.get("LOCAL_STORAGE_ROOT", "/data/local_storage")
-
+APP_STATUS_URL = os.environ.get("APP_STATUS_URL")   # ตั้งค่า ENV ใน Railway
+APP_SIZE_URL   = os.environ.get("APP_SIZE_URL")     # ตั้งค่า ENV ใน Railway
 
 FS_SENSOR_DIR = os.path.join(BASE_LOCAL, "sensor")
 FS_SAN_DIR    = os.path.join(BASE_LOCAL, "san")
@@ -349,27 +350,16 @@ FS_DIN_DIR    = os.path.join(BASE_LOCAL, "din")
 POND_STATUS_FILE = os.path.join(BASE_LOCAL, "pond_status.json")
 SHRIMP_SIZE_FILE = os.path.join(BASE_LOCAL, "shrimp_size.json")
 
-APP_STATUS_URL = os.environ.get(
-    "APP_STATUS_URL", 
-    "https://railwayreal555-production.up.railway.app/ponds/1/status"
-)
-APP_SIZE_URL = os.environ.get(
-    "APP_SIZE_URL", 
-    "https://railwayreal555-production.up.railway.app/ponds/1/shrimp_size"
-)
-
 # =========================
 # 2) HELPERS
 # =========================
 def _latest_json_in_dir(dir_path: str, pond_id: int | None = None):
-    """คืน (path, data) ของไฟล์ .json ล่าสุด"""
     if not os.path.isdir(dir_path):
         return None, None
     files = glob.glob(os.path.join(dir_path, "*.json"))
     files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
     if not files:
         return None, None
-
     for p in files:
         try:
             with open(p, "r", encoding="utf-8") as f:
@@ -388,6 +378,8 @@ def _pick_url_maybe_list(v):
 
 def _send_json_to(url: str, data: dict):
     try:
+        if not url:
+            return
         r = requests.post(url, json=data, timeout=6)
         if r.status_code == 200:
             print(f"✅ Sent to {url}")
@@ -427,7 +419,6 @@ def build_pond_status_json(pond_id: int) -> dict:
     water_d  = last_seen_data["water"]
     shrimp_d = last_seen_data["shrimp"]
 
-    # sensor
     sensor_part = {"temperature": None, "ph": None, "do": None}
     if sensor_d:
         sensor_part = {
@@ -436,21 +427,18 @@ def build_pond_status_json(pond_id: int) -> dict:
             "do": sensor_d.get("do"),
         }
 
-    # san -> minerals
     minerals = {"Mineral_1": 0.0, "Mineral_2": 0.0, "Mineral_3": 0.0, "Mineral_4": 0.0}
     if san_d:
         arr = san_d.get("remaining_g") or []
         for i in range(4):
             minerals[f"Mineral_{i+1}"] = float(arr[i]) if i < len(arr) else 0.0
 
-    # water
     water_image = None
     water_color = "unknown"
     if water_d:
         water_image = _pick_url_maybe_list(water_d.get("output_image"))
         water_color = (water_d.get("text_content") or "").strip() or "unknown"
 
-    # shrimp float
     shrimp_float_image = None
     if shrimp_d:
         shrimp_float_image = _pick_url_maybe_list(shrimp_d.get("output_image"))
@@ -504,7 +492,6 @@ async def loop_build_and_push(pond_id: int):
     global last_seen_data
     while True:
         try:
-            # อัปเดต cache ถ้ามีไฟล์ใหม่
             _, sensor_d = _latest_json_in_dir(FS_SENSOR_DIR, pond_id=pond_id)
             if sensor_d: last_seen_data["sensor"] = sensor_d
 
@@ -523,24 +510,25 @@ async def loop_build_and_push(pond_id: int):
             _, din_d = _latest_json_in_dir(FS_DIN_DIR, pond_id=pond_id)
             if din_d: last_seen_data["din"] = din_d
 
-            # ใช้ cache (ไฟล์ใหม่หรือเก่า)
             status_json = build_pond_status_json(pond_id)
             size_json   = build_shrimp_size_json(pond_id)
 
-            _send_json_to(APP_STATUS_URL, status_json)
-            _send_json_to(APP_SIZE_URL, size_json)
+            if APP_STATUS_URL:
+                _send_json_to(APP_STATUS_URL, status_json)
+            if APP_SIZE_URL:
+                _send_json_to(APP_SIZE_URL, size_json)
 
         except Exception as e:
             print("❌ Loop error:", e)
 
-        await asyncio.sleep(5)  # รอ 5 วิ
+        await asyncio.sleep(5)
 
 @app.on_event("startup")
 async def start_background():
     asyncio.create_task(loop_build_and_push(pond_id=1))
 
 # =========================
-# 6) ENDPOINTS สำหรับดึงข้อมูลล่าสุด
+# 6) ENDPOINTS
 # =========================
 @app.get("/ponds/{pond_id}/status")
 def get_status(pond_id: int):
@@ -556,7 +544,9 @@ def get_size(pond_id: int):
             return json.load(f)
     return {"error": "no shrimp_size.json yet"}
 
-
+# =========================
+# 7) ENTRYPOINT
+# =========================
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))  # Railway จะใส่ค่า PORT ให้อัตโนมัติ
+    port = int(os.environ.get("PORT", 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)

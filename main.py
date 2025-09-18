@@ -16,8 +16,6 @@ from local_storage import LocalStorage
 import math
 import paho.mqtt.client as mqtt
 
-# =============== เปลี่ยนมาใช้ Gemini ===============
-import google.generativeai as genai  # ใส่ Google AI Studio API KEY ที่นี่
 
 # =============== FastAPI และ CORS ====================
 app = FastAPI()

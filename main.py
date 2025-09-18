@@ -361,3 +361,230 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))  # [Railway]
     uvicorn.run("main:app", host="0.0.0.0", port=port)
+
+
+# =========================
+# 1) CONFIG: โฟลเดอร์แหล่งข้อมูล (แก้ ENV ได้)
+# =========================
+import asyncio
+
+app = FastAPI()
+
+# =========================
+# 1) CONFIG
+# =========================
+BASE_LOCAL = os.environ.get("LOCAL_STORAGE_ROOT", "./local_storage")
+
+
+FS_SENSOR_DIR = os.path.join(BASE_LOCAL, "sensor")
+FS_SAN_DIR    = os.path.join(BASE_LOCAL, "san")
+FS_WATER_DIR  = os.path.join(BASE_LOCAL, "water")
+FS_SHRIMP_DIR = os.path.join(BASE_LOCAL, "shrimp")
+FS_SIZE_DIR   = os.path.join(BASE_LOCAL, "size")
+FS_DIN_DIR    = os.path.join(BASE_LOCAL, "din")
+
+POND_STATUS_FILE = os.path.join(BASE_LOCAL, "pond_status.json")
+SHRIMP_SIZE_FILE = os.path.join(BASE_LOCAL, "shrimp_size.json")
+
+APP_STATUS_URL = os.environ.get("APP_STATUS_URL", "https://your-app.onrailway.app/api/pond_status")
+APP_SIZE_URL   = os.environ.get("APP_SIZE_URL",   "https://your-app.onrailway.app/api/shrimp_size")
+
+os.makedirs(BASE_LOCAL, exist_ok=True)
+
+# =========================
+# 2) HELPERS
+# =========================
+def _latest_json_in_dir(dir_path: str, pond_id: int | None = None):
+    """คืน (path, data) ของไฟล์ .json ล่าสุด"""
+    if not os.path.isdir(dir_path):
+        return None, None
+    files = glob.glob(os.path.join(dir_path, "*.json"))
+    files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+    if not files:
+        return None, None
+
+    for p in files:
+        try:
+            with open(p, "r", encoding="utf-8") as f:
+                d = json.load(f)
+            pid = d.get("pond_id", d.get("pond_number"))
+            if pond_id is None or pid == pond_id:
+                return p, d
+        except:
+            continue
+    return None, None
+
+def _pick_url_maybe_list(v):
+    if isinstance(v, list):
+        return v[0] if v else None
+    return v
+
+def _send_json_to(url: str, data: dict):
+    try:
+        r = requests.post(url, json=data, timeout=6)
+        if r.status_code == 200:
+            print(f"✅ Sent to {url}")
+        else:
+            print(f"⚠️ App responded {r.status_code}: {r.text}")
+    except Exception as e:
+        print(f"❌ Push to app failed ({url}): {e}")
+
+def _extract_size_from_json(size_json: dict):
+    if "shrimp_size" in size_json:
+        sc = size_json["shrimp_size"]
+        return sc.get("length_cm"), sc.get("weight_avg_g")
+    txt = size_json.get("text_content") or ""
+    m_len = re.search(r"(length|len|ความยาว)\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)", txt, flags=re.I)
+    m_wgt = re.search(r"(weight|น้ำหนัก)\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)", txt, flags=re.I)
+    return (float(m_len.group(2)) if m_len else None,
+            float(m_wgt.group(2)) if m_wgt else None)
+
+# =========================
+# 3) CACHE
+# =========================
+last_seen_data = {
+    "sensor": None,
+    "san": None,
+    "water": None,
+    "shrimp": None,
+    "size": None,
+    "din": None
+}
+
+# =========================
+# 4) BUILDERS
+# =========================
+def build_pond_status_json(pond_id: int) -> dict:
+    sensor_d = last_seen_data["sensor"]
+    san_d    = last_seen_data["san"]
+    water_d  = last_seen_data["water"]
+    shrimp_d = last_seen_data["shrimp"]
+
+    # sensor
+    sensor_part = {"temperature": None, "ph": None, "do": None}
+    if sensor_d:
+        sensor_part = {
+            "temperature": sensor_d.get("temperature"),
+            "ph": sensor_d.get("ph"),
+            "do": sensor_d.get("do"),
+        }
+
+    # san -> minerals
+    minerals = {"Mineral_1": 0.0, "Mineral_2": 0.0, "Mineral_3": 0.0, "Mineral_4": 0.0}
+    if san_d:
+        arr = san_d.get("remaining_g") or []
+        for i in range(4):
+            minerals[f"Mineral_{i+1}"] = float(arr[i]) if i < len(arr) else 0.0
+
+    # water
+    water_image = None
+    water_color = "unknown"
+    if water_d:
+        water_image = _pick_url_maybe_list(water_d.get("output_image"))
+        water_color = (water_d.get("text_content") or "").strip() or "unknown"
+
+    # shrimp float
+    shrimp_float_image = None
+    if shrimp_d:
+        shrimp_float_image = _pick_url_maybe_list(shrimp_d.get("output_image"))
+
+    data = {
+        "pond_id": pond_id,
+        "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        "sensor": sensor_part,
+        "chemicals": minerals,
+        "water": {"color": water_color, "image_url": water_image},
+        "shrimp_float": {"image_url": shrimp_float_image},
+        "status": "normal"
+    }
+    with open(POND_STATUS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    return data
+
+def build_shrimp_size_json(pond_id: int) -> dict:
+    size_d = last_seen_data["size"]
+    din_d  = last_seen_data["din"]
+
+    size_image = None
+    length_cm, weight_g = None, None
+    if size_d:
+        size_image = _pick_url_maybe_list(size_d.get("output_image"))
+        length_cm, weight_g = _extract_size_from_json(size_d)
+
+    video_url = None
+    if din_d:
+        video_url = din_d.get("output_video")
+
+    data = {
+        "pond_id": pond_id,
+        "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        "shrimp_size": {
+            "length_cm": length_cm,
+            "weight_avg_g": weight_g,
+            "image_url": size_image
+        },
+        "shrimp_feed": {"image_url": size_image},
+        "shrimp_video_url": video_url
+    }
+    with open(SHRIMP_SIZE_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    return data
+
+# =========================
+# 5) BACKGROUND LOOP
+# =========================
+async def loop_build_and_push(pond_id: int):
+    global last_seen_data
+    while True:
+        try:
+            # อัปเดต cache ถ้ามีไฟล์ใหม่
+            _, sensor_d = _latest_json_in_dir(FS_SENSOR_DIR, pond_id=pond_id)
+            if sensor_d: last_seen_data["sensor"] = sensor_d
+
+            _, san_d = _latest_json_in_dir(FS_SAN_DIR, pond_id=pond_id)
+            if san_d: last_seen_data["san"] = san_d
+
+            _, water_d = _latest_json_in_dir(FS_WATER_DIR, pond_id=pond_id)
+            if water_d: last_seen_data["water"] = water_d
+
+            _, shrimp_d = _latest_json_in_dir(FS_SHRIMP_DIR, pond_id=pond_id)
+            if shrimp_d: last_seen_data["shrimp"] = shrimp_d
+
+            _, size_d = _latest_json_in_dir(FS_SIZE_DIR, pond_id=pond_id)
+            if size_d: last_seen_data["size"] = size_d
+
+            _, din_d = _latest_json_in_dir(FS_DIN_DIR, pond_id=pond_id)
+            if din_d: last_seen_data["din"] = din_d
+
+            # ใช้ cache (ไฟล์ใหม่หรือเก่า)
+            status_json = build_pond_status_json(pond_id)
+            size_json   = build_shrimp_size_json(pond_id)
+
+            _send_json_to(APP_STATUS_URL, status_json)
+            _send_json_to(APP_SIZE_URL, size_json)
+
+        except Exception as e:
+            print("❌ Loop error:", e)
+
+        await asyncio.sleep(5)  # รอ 5 วิ
+
+@app.on_event("startup")
+async def start_background():
+    asyncio.create_task(loop_build_and_push(pond_id=1))
+
+# =========================
+# 6) ENDPOINTS สำหรับดึงข้อมูลล่าสุด
+# =========================
+@app.get("/ponds/{pond_id}/status")
+def get_status(pond_id: int):
+    if os.path.exists(POND_STATUS_FILE):
+        with open(POND_STATUS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {"error": "no pond_status.json yet"}
+
+@app.get("/ponds/{pond_id}/shrimp_size")
+def get_size(pond_id: int):
+    if os.path.exists(SHRIMP_SIZE_FILE):
+        with open(SHRIMP_SIZE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {"error": "no shrimp_size.json yet"}

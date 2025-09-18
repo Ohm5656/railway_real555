@@ -349,8 +349,15 @@ FS_DIN_DIR    = os.path.join(BASE_LOCAL, "din")
 POND_STATUS_FILE = os.path.join(BASE_LOCAL, "pond_status.json")
 SHRIMP_SIZE_FILE = os.path.join(BASE_LOCAL, "shrimp_size.json")
 
-APP_STATUS_URL = os.environ["APP_STATUS_URL"]
-APP_SIZE_URL   = os.environ["APP_SIZE_URL"]
+APP_STATUS_URL = os.environ.get(
+    "APP_STATUS_URL", 
+    "https://railwayreal555-production.up.railway.app/ponds/1/status"
+)
+APP_SIZE_URL = os.environ.get(
+    "APP_SIZE_URL", 
+    "https://railwayreal555-production.up.railway.app/ponds/1/shrimp_size"
+)
+
 # =========================
 # 2) HELPERS
 # =========================

@@ -14,7 +14,6 @@ from process.water import analyze_water
 from local_storage import LocalStorage
 
 import math
-from datetime import datetime, timedelta
 import paho.mqtt.client as mqtt
 
 # =============== เปลี่ยนมาใช้ Gemini ===============
@@ -356,11 +355,6 @@ async def receive_sensor_data(request: Request):
 
 # -----------------------------------------------------------------------------
 # [Railway] เพิ่ม entrypoint สำหรับรันด้วยพอร์ตที่ Railway กำหนดผ่าน ENV PORT
-# -----------------------------------------------------------------------------
-if __name__ == "__main__":
-    import uvicorn
-    port = int(os.environ.get("PORT", 8000))  # [Railway]
-    uvicorn.run("main:app", host="0.0.0.0", port=port)
 
 
 # =========================

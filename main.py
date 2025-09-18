@@ -349,11 +349,8 @@ FS_DIN_DIR    = os.path.join(BASE_LOCAL, "din")
 POND_STATUS_FILE = os.path.join(BASE_LOCAL, "pond_status.json")
 SHRIMP_SIZE_FILE = os.path.join(BASE_LOCAL, "shrimp_size.json")
 
-APP_STATUS_URL = os.environ.get("APP_STATUS_URL", "https://your-app.onrailway.app/api/pond_status")
-APP_SIZE_URL   = os.environ.get("APP_SIZE_URL",   "https://your-app.onrailway.app/api/shrimp_size")
-
-os.makedirs(BASE_LOCAL, exist_ok=True)
-
+APP_STATUS_URL = os.environ["APP_STATUS_URL"]
+APP_SIZE_URL   = os.environ["APP_SIZE_URL"]
 # =========================
 # 2) HELPERS
 # =========================

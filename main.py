@@ -59,55 +59,83 @@ storage = LocalStorage(storage_path=LOCAL_STORAGE_BASE, base_url=FILE_BASE_URL)
 # ------------------------------------------------------------------------------------
 # Helper: แปลง path → public URL
 # ------------------------------------------------------------------------------------
+PUBLIC_FOLDER_ALIASES = {
+    "size": "size",
+    "size_output": "size",
+    "shrimp": "shrimp",
+    "shrimp_output": "shrimp",
+    "din": "din",
+    "din_output": "din",
+    "water": "water",
+    "water_output": "water",
+}
+
+
+def _relative_to_storage(file_path: str):
+    abs_file = os.path.abspath(file_path)
+    candidates = []
+    for base in {LOCAL_STORAGE_BASE, os.environ.get("STORAGE_DIR")}:
+        if base:
+            candidates.append(os.path.abspath(base))
+
+    seen = set()
+    for base in candidates:
+        if base in seen:
+            continue
+        seen.add(base)
+        try:
+            rel = os.path.relpath(abs_file, base)
+        except ValueError:
+            continue
+        rel = rel.replace('\\', '/')
+        if rel.startswith('..'):
+            continue
+        rel = rel.lstrip('./')
+        if rel:
+            return rel
+    return None
+
+
+def _extract_public_subpath(parts):
+    for idx, part in enumerate(parts):
+        mapped = PUBLIC_FOLDER_ALIASES.get(str(part).lower())
+        if mapped:
+            remainder = list(parts[idx + 1:])
+            segment = '/'.join([mapped, *remainder]).strip('/')
+            return segment
+    return None
+
+
 def make_public_url(file_path: str) -> str:
-    file_path = file_path.replace("\\", "/")
+    abs_file = os.path.abspath(file_path)
+    rel_path = _relative_to_storage(abs_file)
 
-    # หา relative path จาก /data/local_storage
-    rel_path = os.path.relpath(file_path, "/data/local_storage").replace("\\", "/")
+    segment = None
+    if rel_path:
+        segment = _extract_public_subpath(rel_path.split('/'))
 
-    # ถ้าอยู่ใน size
-    if rel_path.startswith("size/"):
-        return f"{FILE_BASE_URL}/size/{os.path.basename(rel_path)}"
-    if rel_path.startswith("shrimp/"):
-        return f"{FILE_BASE_URL}/shrimp/{os.path.basename(rel_path)}"
-    if rel_path.startswith("din/"):
-        return f"{FILE_BASE_URL}/din/{os.path.basename(rel_path)}"
-    if rel_path.startswith("water/"):
-        return f"{FILE_BASE_URL}/water/{os.path.basename(rel_path)}"
+    if not segment:
+        segment = _extract_public_subpath(Path(abs_file).parts)
 
-    # fallback
-    return f"{FILE_BASE_URL}/{os.path.basename(rel_path)}"
+    if segment:
+        return f"{FILE_BASE_URL}/{segment}"
 
-
+    return f"{FILE_BASE_URL}/{os.path.basename(abs_file)}"
 
 
 # A more robust URL builder that uses configured storage base
 def build_public_url(file_path: str) -> str:
-    try:
-        p = Path(file_path).resolve()
-    except Exception:
-        p = Path(file_path)
+    abs_file = os.path.abspath(file_path)
+    rel_path = _relative_to_storage(abs_file)
 
-    name = p.name
-    base = Path(LOCAL_STORAGE_BASE).resolve()
+    if rel_path:
+        segment = _extract_public_subpath(rel_path.split('/'))
+        if segment:
+            return f"{FILE_BASE_URL}/{segment}"
+        return f"{FILE_BASE_URL}/{rel_path}"
 
-    folder = None
-    try:
-        rel = p.resolve().relative_to(base)
-        if len(rel.parts) > 0 and rel.parts[0] in {"size", "shrimp", "din", "water"}:
-            folder = rel.parts[0]
-    except Exception:
-        pass
+    return make_public_url(abs_file)
 
-    if not folder:
-        for cand in ("size", "shrimp", "din", "water"):
-            if cand in p.parts:
-                folder = cand
-                break
-
-    if folder:
-        return f"{FILE_BASE_URL}/{folder}/{name}"
-    return f"{FILE_BASE_URL}/{name}"
 # ------------------------------------------------------------------------------------
 # Helper: ดึงค่า length/weight จาก text_content
 # ------------------------------------------------------------------------------------
@@ -147,12 +175,12 @@ def save_json_result(result_type, original_name,
 
     if output_image:
         if isinstance(output_image, list):
-            result_data["output_image"] = [build_public_url(p) for p in output_image]
+            result_data["output_image"] = [make_public_url(p) for p in output_image]
         else:
-            result_data["output_image"] = build_public_url(output_image)
+            result_data["output_image"] = make_public_url(output_image)
 
     if output_video:
-        result_data["output_video"] = build_public_url(output_video)
+        result_data["output_video"] = make_public_url(output_video)
 
     # ✅ เพิ่ม shrimp_size ถ้าเป็น result_type = "size"
     if result_type == "size":

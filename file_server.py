@@ -24,20 +24,25 @@ app.add_middleware(
 # -----------------------------------------------------------------
 # [Railway] ปรับฐาน path ให้ configurable ผ่าน ENV และชี้ไปยัง Volume (/data)
 # -----------------------------------------------------------------
+# -----------------------------------------------------------------
+# [Railway] ปรับฐาน path ให้ configurable ผ่าน ENV และชี้ไปยัง Volume (/data)
+# -----------------------------------------------------------------
 STORAGE_DIR = Path(os.environ.get("STORAGE_DIR", "/data/local_storage"))  # [Railway]
-OUTPUT_DIR  = Path(os.environ.get("OUTPUT_DIR",  "/data/output"))         # [Railway]
+OUTPUT_DIR  = Path(os.environ.get("OUTPUT_DIR",  "/data/local_storage"))  # [Railway]
+
+# สร้างโฟลเดอร์ย่อยสำหรับแต่ละหมวด
 STORAGE_DIR.mkdir(parents=True, exist_ok=True)
-(OUTPUT_DIR / "size_output").mkdir(parents=True, exist_ok=True)
-(OUTPUT_DIR / "shrimp_output").mkdir(parents=True, exist_ok=True)
-(OUTPUT_DIR / "din_output").mkdir(parents=True, exist_ok=True)
-(OUTPUT_DIR / "water_output").mkdir(parents=True, exist_ok=True)
+(OUTPUT_DIR / "size").mkdir(parents=True, exist_ok=True)
+(OUTPUT_DIR / "shrimp").mkdir(parents=True, exist_ok=True)
+(OUTPUT_DIR / "din").mkdir(parents=True, exist_ok=True)
+(OUTPUT_DIR / "water").mkdir(parents=True, exist_ok=True)
 
 # ===================== Mount static files =====================
 app.mount("/storage", StaticFiles(directory=str(STORAGE_DIR)), name="storage")
-app.mount("/size",   StaticFiles(directory=str(OUTPUT_DIR / "size_output")),   name="size")
-app.mount("/shrimp", StaticFiles(directory=str(OUTPUT_DIR / "shrimp_output")), name="shrimp")
-app.mount("/din",    StaticFiles(directory=str(OUTPUT_DIR / "din_output")),    name="din")
-app.mount("/water",  StaticFiles(directory=str(OUTPUT_DIR / "water_output")),  name="water")
+app.mount("/size",   StaticFiles(directory=str(OUTPUT_DIR / "size")),   name="size")
+app.mount("/shrimp", StaticFiles(directory=str(OUTPUT_DIR / "shrimp")), name="shrimp")
+app.mount("/din",    StaticFiles(directory=str(OUTPUT_DIR / "din")),    name="din")
+app.mount("/water",  StaticFiles(directory=str(OUTPUT_DIR / "water")),  name="water")
 
 # ===================== Routes =====================
 @app.get("/")

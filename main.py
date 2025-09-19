@@ -547,6 +547,39 @@ def get_size(pond_id: int):
             return json.load(f)
     return {"error": "no shrimp_size.json yet"}
 
+
+
+from fastapi.responses import JSONResponse
+from pathlib import Path
+
+
+@app.get("/list")
+def list_dir(path: str = ""):
+    """
+    list directory/file ทั้งหมดจาก BASE_LOCAL (/data/local_storage) หรือ path ที่ส่งมา
+    ใช้ query param เช่น ?path=sensor หรือ ?path=../input_raspi2
+    """
+    base = Path("/")   # จุดเริ่ม root ของ container
+    target = (base / path).resolve()
+
+    # ป้องกันไม่ให้หลุดออกนอก root
+    if not str(target).startswith(str(base)):
+        raise HTTPException(status_code=400, detail="Invalid path")
+
+    if not target.exists():
+        raise HTTPException(status_code=404, detail="Path not found")
+
+    items = []
+    for p in sorted(target.iterdir()):
+        items.append({
+            "name": p.name,
+            "is_dir": p.is_dir(),
+            "size": p.stat().st_size if p.is_file() else None,
+            "path": str(p)
+        })
+    return JSONResponse(items)
+
+
 # =========================
 # 7) ENTRYPOINT
 # =========================

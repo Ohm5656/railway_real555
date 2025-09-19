@@ -13,7 +13,6 @@ import re
 import glob
 from pathlib import Path
 
-
 from process.size import analyze_shrimp
 from process.shrimp import analyze_kuny
 from process.din import analyze_video
@@ -24,6 +23,7 @@ from local_storage import LocalStorage
 app = FastAPI()
 
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -38,6 +38,12 @@ STORAGE_DIR = Path(os.environ.get("STORAGE_DIR", "/data/local_storage"))
 (STORAGE_DIR / "shrimp").mkdir(parents=True, exist_ok=True)
 (STORAGE_DIR / "din").mkdir(parents=True, exist_ok=True)
 (STORAGE_DIR / "water").mkdir(parents=True, exist_ok=True)
+# Mount static directories so this app can serve files directly
+app.mount("/storage", StaticFiles(directory=str(STORAGE_DIR)), name="storage")
+app.mount("/size",   StaticFiles(directory=str(STORAGE_DIR / "size")), name="size")
+app.mount("/shrimp", StaticFiles(directory=str(STORAGE_DIR / "shrimp")), name="shrimp")
+app.mount("/din",    StaticFiles(directory=str(STORAGE_DIR / "din")),   name="din")
+app.mount("/water",  StaticFiles(directory=str(STORAGE_DIR / "water")), name="water")
 # ------------------------------------------------------------------------------------
 # [Railway] Config พื้นฐาน
 # ------------------------------------------------------------------------------------
@@ -75,6 +81,33 @@ def make_public_url(file_path: str) -> str:
 
 
 
+# A more robust URL builder that uses configured storage base
+def build_public_url(file_path: str) -> str:
+    try:
+        p = Path(file_path).resolve()
+    except Exception:
+        p = Path(file_path)
+
+    name = p.name
+    base = Path(LOCAL_STORAGE_BASE).resolve()
+
+    folder = None
+    try:
+        rel = p.resolve().relative_to(base)
+        if len(rel.parts) > 0 and rel.parts[0] in {"size", "shrimp", "din", "water"}:
+            folder = rel.parts[0]
+    except Exception:
+        pass
+
+    if not folder:
+        for cand in ("size", "shrimp", "din", "water"):
+            if cand in p.parts:
+                folder = cand
+                break
+
+    if folder:
+        return f"{FILE_BASE_URL}/{folder}/{name}"
+    return f"{FILE_BASE_URL}/{name}"
 # ------------------------------------------------------------------------------------
 # Helper: ดึงค่า length/weight จาก text_content
 # ------------------------------------------------------------------------------------
@@ -114,12 +147,12 @@ def save_json_result(result_type, original_name,
 
     if output_image:
         if isinstance(output_image, list):
-            result_data["output_image"] = [make_public_url(p) for p in output_image]
+            result_data["output_image"] = [build_public_url(p) for p in output_image]
         else:
-            result_data["output_image"] = make_public_url(output_image)
+            result_data["output_image"] = build_public_url(output_image)
 
     if output_video:
-        result_data["output_video"] = make_public_url(output_video)
+        result_data["output_video"] = build_public_url(output_video)
 
     # ✅ เพิ่ม shrimp_size ถ้าเป็น result_type = "size"
     if result_type == "size":

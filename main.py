@@ -30,6 +30,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+STORAGE_DIR = Path(os.environ.get("STORAGE_DIR", "/data/local_storage"))
+
+(STORAGE_DIR / "size").mkdir(parents=True, exist_ok=True)
+(STORAGE_DIR / "shrimp").mkdir(parents=True, exist_ok=True)
+(STORAGE_DIR / "din").mkdir(parents=True, exist_ok=True)
+(STORAGE_DIR / "water").mkdir(parents=True, exist_ok=True)
 # ------------------------------------------------------------------------------------
 # [Railway] Config พื้นฐาน
 # ------------------------------------------------------------------------------------

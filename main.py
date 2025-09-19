@@ -50,13 +50,13 @@ def make_public_url(file_path: str) -> str:
     file_path = file_path.replace("\\", "/")
     rel_path = os.path.basename(file_path)
 
-    if "/local_storage/size" in file_path:
+    if "/data/local_storage/size" in file_path:
         return f"{FILE_BASE_URL}/size/{rel_path}"
-    if "/local_storage/shrimp" in file_path:
+    if "/data/local_storage/shrimp" in file_path:
         return f"{FILE_BASE_URL}/shrimp/{rel_path}"
-    if "/local_storage/din" in file_path:
+    if "/data/local_storage/din" in file_path:
         return f"{FILE_BASE_URL}/din/{rel_path}"
-    if "/local_storage/water" in file_path:
+    if "/data/local_storage/water" in file_path:
         return f"{FILE_BASE_URL}/water/{rel_path}"
 
     # fallback

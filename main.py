@@ -393,11 +393,19 @@ def _extract_size_from_json(size_json: dict):
     if "shrimp_size" in size_json:
         sc = size_json["shrimp_size"]
         return sc.get("length_cm"), sc.get("weight_avg_g")
+
     txt = size_json.get("text_content") or ""
-    m_len = re.search(r"(length|len|ความยาว)\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)", txt, flags=re.I)
-    m_wgt = re.search(r"(weight|น้ำหนัก)\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)", txt, flags=re.I)
-    return (float(m_len.group(2)) if m_len else None,
-            float(m_wgt.group(2)) if m_wgt else None)
+    # ✅ Match pattern "Shrimp 1: 0.33 cm / 0.00 g"
+    matches = re.findall(r"Shrimp\s+\d+:\s*([\d.]+)\s*cm\s*/\s*([\d.]+)\s*g", txt)
+    if matches:
+        lengths = [float(m[0]) for m in matches]
+        weights = [float(m[1]) for m in matches]
+        avg_length = sum(lengths) / len(lengths)
+        avg_weight = sum(weights) / len(weights)
+        return avg_length, avg_weight
+
+    return None, None
+
 
 # =========================
 # 3) CACHE

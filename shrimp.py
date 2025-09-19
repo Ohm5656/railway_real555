@@ -6,7 +6,7 @@ import os
 model_path = os.environ.get("MODEL_SHRIMP", os.path.join("Model", "shrimp.pt"))
 model = YOLO(model_path)
 
-output_folder = os.environ.get("OUTPUT_SHRIMP", "/data/output/shrimp_output")
+output_folder = os.environ.get("OUTPUT_SHRIMP", "/data/local_storage/shrimp")
 os.makedirs(output_folder, exist_ok=True)
 
 def analyze_kuny(image_path, original_name: str = None):

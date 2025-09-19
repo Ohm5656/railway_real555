@@ -60,7 +60,7 @@ def analyze_shrimp(input_path, total_larvae=None, pond_number=None,
     print(f"📘 ใช้ค่า a={a:.5f}, b={b:.3f} (มาตรฐานไทย)")
 
     # ===================== PATH =====================
-    output_dir_output = os.environ.get("OUTPUT_SIZE", "/data/output/size_output")
+    output_dir_output = os.environ.get("OUTPUT_SIZE", "/data/local_storage/size")
     os.makedirs(output_dir_output, exist_ok=True)
     # =================================================
 

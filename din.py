@@ -21,7 +21,7 @@ def analyze_video(input_path, original_name: str = None):
         print(f"❌ ไม่พบวิดีโอ: {input_path}")
         return
 
-    output_dir = os.environ.get("OUTPUT_DIN", "/data/output/din_output")
+    output_dir = os.environ.get("OUTPUT_DIN", "/data/local_storage/din")
     os.makedirs(output_dir, exist_ok=True)
 
     base_name = os.path.splitext(original_name or os.path.basename(input_path))[0]

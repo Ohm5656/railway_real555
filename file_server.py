@@ -107,6 +107,83 @@ async def health_check():
         "storage_path": str(STORAGE_DIR),
         "output_path": str(OUTPUT_DIR)
     }
+    
+    
+    # วางไว้ส่วนบนไฟล์ ใกล้ๆ imports อื่นๆ
+from pathlib import Path
+import shutil
+import glob
+
+BASE_ROOT = Path(os.environ.get("LOCAL_STORAGE_BASE", "/data/local_storage")).resolve()
+# 1) ลบไฟล์เดี่ยวด้วย path ตรง ๆ
+@app.delete("/delete_by_path")
+def delete_by_path(path: str):
+    target = Path(path).resolve()
+    if not str(target).startswith(str(BASE_ROOT)):
+        raise HTTPException(status_code=400, detail="Invalid path: outside allowed base")
+
+    if not target.exists() or not target.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    try:
+        target.unlink()
+        return {"status": "success", "deleted": str(target)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting file: {e}")
+
+
+# 2) ลบทั้งโฟลเดอร์ (เช่น /data/local_storage/size)
+#    - ถ้า recursive=false จะลบได้เฉพาะโฟลเดอร์ว่าง
+#    - ถ้า recursive=true จะลบทั้งโฟลเดอร์และทุกไฟล์ย่อย
+@app.delete("/delete_dir")
+def delete_dir(path: str, recursive: bool = False):
+    target = Path(path).resolve()
+    if not str(target).startswith(str(BASE_ROOT)):
+        raise HTTPException(status_code=400, detail="Invalid path: outside allowed base")
+
+    if not target.exists() or not target.is_dir():
+        raise HTTPException(status_code=404, detail="Directory not found")
+
+    try:
+        if recursive:
+            shutil.rmtree(target)
+        else:
+            target.rmdir()
+        return {"status": "success", "deleted_dir": str(target), "recursive": recursive}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting directory: {e}")
+
+
+# 3) ลบเป็นชุดด้วย pattern (เช่น size/*.json หรือ size/**/*.json)
+@app.delete("/delete_glob")
+def delete_glob(pattern: str):
+    # สร้าง pattern ที่อยู่ใต้ BASE_ROOT เสมอ
+    pattern_path = (BASE_ROOT / pattern.lstrip("/")).as_posix()
+    matches = [Path(p).resolve() for p in glob.glob(pattern_path, recursive=True)]
+
+    # กรองอีกชั้น กันหลุด base
+    safe_matches = [p for p in matches if str(p).startswith(str(BASE_ROOT)) and p.is_file()]
+
+    if not safe_matches:
+        return {"status": "ok", "deleted_count": 0, "pattern": pattern}
+
+    deleted = []
+    errors = []
+    for p in safe_matches:
+        try:
+            p.unlink()
+            deleted.append(str(p))
+        except Exception as e:
+            errors.append({"path": str(p), "error": str(e)})
+
+    return {
+        "status": "ok",
+        "pattern": pattern,
+        "deleted_count": len(deleted),
+        "deleted": deleted,
+        "errors": errors
+    }
+
 
 # ===================== Entrypoint =====================
 if __name__ == "__main__":

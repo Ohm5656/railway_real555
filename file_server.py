@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from local_storage import LocalStorage # ✅ ใช้ instance ที่สร้างไว้แล้ว
+from local_storage import local_storage   # ✅ import instance แทน class
 
 app = FastAPI(title="Local File Server")
 
@@ -21,9 +21,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# -----------------------------------------------------------------
-# [Railway] ปรับฐาน path ให้ configurable ผ่าน ENV และชี้ไปยัง Volume (/data)
-# -----------------------------------------------------------------
 # -----------------------------------------------------------------
 # [Railway] ปรับฐาน path ให้ configurable ผ่าน ENV และชี้ไปยัง Volume (/data)
 # -----------------------------------------------------------------
@@ -44,7 +41,6 @@ app.mount("/shrimp", StaticFiles(directory="/data/local_storage/shrimp"), name="
 app.mount("/din",    StaticFiles(directory="/data/local_storage/din"),   name="din")
 app.mount("/water",  StaticFiles(directory="/data/local_storage/water"), name="water")
 
-
 # ===================== Routes =====================
 @app.get("/")
 async def root():
@@ -63,11 +59,11 @@ async def root():
 async def serve_file(file_id: str):
     """Serve ไฟล์จาก file_id (ใช้ metadata.json)"""
     try:
-        file_info = LocalStorage.get_file_info(file_id)  # ✅ ใช้ instance
+        file_info = local_storage.get_file_info(file_id)  # ✅ ใช้ instance
         if not file_info:
             raise HTTPException(status_code=404, detail="File not found")
 
-        file_path = LocalStorage.get_file_path(file_id)  # ✅ ใช้ instance
+        file_path = local_storage.get_file_path(file_id)  # ✅ ใช้ instance
         if not file_path or not os.path.exists(file_path):
             raise HTTPException(status_code=404, detail="File not found")
 
@@ -83,8 +79,8 @@ async def serve_file(file_id: str):
         raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
 
 @app.get("/list")
-async def list_files():
-    files = LocalStorage.list_files()  # ✅ ใช้ instance
+async def list_files(prefix: str = ""):
+    files = local_storage.list_files(prefix)  # ✅ ใช้ instance
     return {
         "total_files": len(files),
         "files": files
@@ -92,14 +88,14 @@ async def list_files():
 
 @app.get("/info/{file_id}")
 async def get_file_info(file_id: str):
-    file_info = LocalStorage.get_file_info(file_id)  # ✅ ใช้ instance
+    file_info = local_storage.get_file_info(file_id)  # ✅ ใช้ instance
     if not file_info:
         raise HTTPException(status_code=404, detail="File not found")
     return file_info
 
 @app.delete("/files/{file_id}")
 async def delete_file(file_id: str):
-    success = LocalStorage.delete_file(file_id)  # ✅ ใช้ instance
+    success = local_storage.delete_file(file_id)  # ✅ ใช้ instance
     if not success:
         raise HTTPException(status_code=404, detail="File not found")
     return {"message": "File deleted successfully"}
@@ -117,4 +113,3 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run("file_server:app", host="0.0.0.0", port=port)
-

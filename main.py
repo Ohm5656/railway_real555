@@ -46,23 +46,30 @@ storage = LocalStorage(storage_path=LOCAL_STORAGE_BASE, base_url=FILE_BASE_URL)
 # Helper: แปลง path → public URL
 # ------------------------------------------------------------------------------------
 def make_public_url(file_path: str) -> str:
-    if LOCAL_STORAGE_BASE in file_path:
-        rel_path = os.path.relpath(file_path, LOCAL_STORAGE_BASE).replace("\\", "/")
-        return f"{FILE_BASE_URL}/{rel_path}"
-
-    if "output\\size_output" in file_path or "output/size_output" in file_path:
+    # 1) ถ้าไฟล์อยู่ใน local_storage/size
+    if "local_storage/size" in file_path:
         return f"{FILE_BASE_URL}/size/{os.path.basename(file_path)}"
 
-    if "output\\shrimp_output" in file_path or "output/shrimp_output" in file_path:
+    # 2) ถ้าไฟล์อยู่ใน local_storage/shrimp
+    if "local_storage/shrimp" in file_path:
         return f"{FILE_BASE_URL}/shrimp/{os.path.basename(file_path)}"
 
-    if "output\\din_output" in file_path or "output/din_output" in file_path:
+    # 3) ถ้าไฟล์อยู่ใน local_storage/din
+    if "local_storage/din" in file_path:
         return f"{FILE_BASE_URL}/din/{os.path.basename(file_path)}"
 
-    if "output\\water_output" in file_path or "output/water_output" in file_path:
+    # 4) ถ้าไฟล์อยู่ใน local_storage/water
+    if "local_storage/water" in file_path:
         return f"{FILE_BASE_URL}/water/{os.path.basename(file_path)}"
 
+    # 5) fallback: map จาก root local_storage
+    if LOCAL_STORAGE_BASE in file_path:
+        rel_path = os.path.relpath(file_path, LOCAL_STORAGE_BASE).replace("\\", "/")
+        return f"{FILE_BASE_URL}/storage/{rel_path}"
+
+    # 6) fallback สุดท้าย
     return f"{FILE_BASE_URL}/{os.path.basename(file_path)}"
+
 
 # ------------------------------------------------------------------------------------
 # Helper: ดึงค่า length/weight จาก text_content

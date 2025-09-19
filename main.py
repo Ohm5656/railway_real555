@@ -173,6 +173,11 @@ def save_json_result(result_type, original_name,
         "text_content": text_content
     }
 
+    if result_data["pond_number"] is None and original_name:
+        fallback_pond = extract_pond_id_from_filename(original_name.lower())
+        if fallback_pond is not None:
+            result_data["pond_number"] = fallback_pond
+
     if output_image:
         if isinstance(output_image, list):
             result_data["output_image"] = [make_public_url(p) for p in output_image]

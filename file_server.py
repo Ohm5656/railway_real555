@@ -39,10 +39,11 @@ STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
 # ===================== Mount static files =====================
 app.mount("/storage", StaticFiles(directory=str(STORAGE_DIR)), name="storage")
-app.mount("/size",   StaticFiles(directory=str(OUTPUT_DIR / "size")),   name="size")
-app.mount("/shrimp", StaticFiles(directory=str(OUTPUT_DIR / "shrimp")), name="shrimp")
-app.mount("/din",    StaticFiles(directory=str(OUTPUT_DIR / "din")),    name="din")
-app.mount("/water",  StaticFiles(directory=str(OUTPUT_DIR / "water")),  name="water")
+app.mount("/size",   StaticFiles(directory="/data/local_storage/size"), name="size")
+app.mount("/shrimp", StaticFiles(directory="/data/local_storage/shrimp"), name="shrimp")
+app.mount("/din",    StaticFiles(directory="/data/local_storage/din"),   name="din")
+app.mount("/water",  StaticFiles(directory="/data/local_storage/water"), name="water")
+
 
 # ===================== Routes =====================
 @app.get("/")

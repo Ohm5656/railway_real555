@@ -155,7 +155,8 @@ def _extract_size_from_text(text: str):
 def save_json_result(result_type, original_name,
                      output_image=None, output_text_path=None,
                      pond_number=None, total_larvae=None,
-                     survival_rate=None, output_video=None):
+                     survival_rate=None, output_video=None,
+                     original_input_path=None):
 
     text_content = None
     if output_text_path and os.path.exists(output_text_path):
@@ -186,6 +187,21 @@ def save_json_result(result_type, original_name,
 
     if output_video:
         result_data["output_video"] = make_public_url(output_video)
+
+    if original_input_path and os.path.exists(original_input_path):
+        raw_dir = os.path.join(LOCAL_STORAGE_BASE, result_type, "raw")
+        os.makedirs(raw_dir, exist_ok=True)
+        raw_filename = os.path.basename(original_input_path)
+        raw_dest = os.path.join(raw_dir, raw_filename)
+        try:
+            if not (os.path.exists(raw_dest) and os.path.samefile(original_input_path, raw_dest)):
+                shutil.copy2(original_input_path, raw_dest)
+        except FileNotFoundError:
+            shutil.copy2(original_input_path, raw_dest)
+        except Exception:
+            pass
+        if os.path.exists(raw_dest):
+            result_data["raw_input_image"] = build_public_url(raw_dest)
 
     # ✅ เพิ่ม shrimp_size ถ้าเป็น result_type = "size"
     if result_type == "size":
@@ -285,7 +301,8 @@ async def process_files(files: List[UploadFile] = File(...)):
                         output_image=output_img_path,
                         output_text_path=output_txt_path,
                         pond_number=pond_number,
-                        total_larvae=total_larvae
+                        total_larvae=total_larvae,
+                        original_input_path=input_path
                     )
                     results.append({"type": "shrimp_size", "filename": filename, "json": json_path})
 
@@ -540,9 +557,11 @@ def build_shrimp_size_json(pond_id: int) -> dict:
     din_d  = last_seen_data["din"]
 
     size_image = None
+    raw_image = None
     length_cm, weight_g = None, None
     if size_d:
         size_image = _pick_url_maybe_list(size_d.get("output_image"))
+        raw_image = size_d.get("raw_input_image")
         length_cm, weight_g = _extract_size_from_json(size_d)
 
     video_url = None
@@ -557,7 +576,7 @@ def build_shrimp_size_json(pond_id: int) -> dict:
             "weight_avg_g": weight_g,
             "image_url": size_image
         },
-        "shrimp_feed": {"image_url": size_image},
+        "shrimp_feed": {"image_url": raw_image or size_image},
         "shrimp_video_url": video_url
     }
     with open(SHRIMP_SIZE_FILE, "w", encoding="utf-8") as f:

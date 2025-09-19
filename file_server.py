@@ -116,7 +116,8 @@ async def delete_file(file_id: str):
 async def health_check():
     return {
         "status": "healthy",
-        "storage_path": str(LocalStorage.storage_path)
+        "storage_path": str(STORAGE_DIR),
+        "output_path": str(OUTPUT_DIR)
     }
 
 # -----------------------------------------------------------------------------

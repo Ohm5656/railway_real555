@@ -6,17 +6,17 @@ import json
 from typing import List
 from datetime import datetime
 import requests
+import math
+import paho.mqtt.client as mqtt
+import uvicorn
+import re
+import glob
 
 from process.size import analyze_shrimp
 from process.shrimp import analyze_kuny
 from process.din import analyze_video
 from process.water import analyze_water
 from local_storage import LocalStorage
-
-import math
-import paho.mqtt.client as mqtt
-import uvicorn
-
 
 # =============== FastAPI และ CORS ====================
 app = FastAPI()
@@ -31,55 +31,60 @@ app.add_middleware(
 )
 
 # ------------------------------------------------------------------------------------
-# [Railway] ตัดการพึ่งพา ngrok + ทำค่า BASE URL และ PATH ต่าง ๆ ให้อ่านจาก ENV
+# [Railway] Config พื้นฐาน
 # ------------------------------------------------------------------------------------
-FILE_BASE_URL = os.environ.get("FILE_BASE_URL", "http://localhost:8001").rstrip("/")  # [Railway] URL ของบริการ file-server อีกตัว
-# ตัวอย่างบน Railway: FILE_BASE_URL="https://file-server.up.railway.app"
+FILE_BASE_URL = os.environ.get("FILE_BASE_URL", "http://localhost:8001").rstrip("/")
+LOCAL_STORAGE_BASE = os.environ.get("LOCAL_STORAGE_BASE", "/data/local_storage")
+DATA_PONDS_DIR = os.environ.get("DATA_PONDS_DIR", "/data/data_ponds")
 
-# ใช้โฟลเดอร์ที่ผูกกับ Railway Volume ได้ (เช่น /data) หรือ fallback เป็นโฟลเดอร์ local
-LOCAL_STORAGE_BASE = os.environ.get("LOCAL_STORAGE_BASE", "/data/local_storage")       # [Railway]
-DATA_PONDS_DIR = os.environ.get("DATA_PONDS_DIR", "/data/data_ponds")                  # [Railway]
+os.makedirs(LOCAL_STORAGE_BASE, exist_ok=True)
+os.makedirs(DATA_PONDS_DIR, exist_ok=True)
 
-os.makedirs(LOCAL_STORAGE_BASE, exist_ok=True)  # [Railway]
-os.makedirs(DATA_PONDS_DIR, exist_ok=True)      # [Railway]
+storage = LocalStorage(storage_path=LOCAL_STORAGE_BASE, base_url=FILE_BASE_URL)
 
-# LocalStorage ใช้ base_url เป็น FILE_BASE_URL (ชี้ไปยัง service ไฟล์จริง)
-storage = LocalStorage(storage_path=LOCAL_STORAGE_BASE, base_url=FILE_BASE_URL)  # [Railway]
-
+# ------------------------------------------------------------------------------------
+# Helper: แปลง path → public URL
+# ------------------------------------------------------------------------------------
 def make_public_url(file_path: str) -> str:
-    """
-    แปลง path ไฟล์เป็น URL สาธารณะ โดยอิง BASE URL ของ file server
-    เดิมใช้ get_file_url() จาก ngrok ตอนนี้เปลี่ยนเป็นใช้ FILE_BASE_URL จาก ENV แทน
-    """
-    # ถ้าไฟล์อยู่ใน local_storage → map ปกติ
     if LOCAL_STORAGE_BASE in file_path:
         rel_path = os.path.relpath(file_path, LOCAL_STORAGE_BASE).replace("\\", "/")
-        return f"{FILE_BASE_URL}/{rel_path}"  # [Railway]
+        return f"{FILE_BASE_URL}/{rel_path}"
 
-    # ถ้าไฟล์อยู่ใน output/size_output → map ไปเป็น /size/
     if "output\\size_output" in file_path or "output/size_output" in file_path:
-        filename = os.path.basename(file_path)
-        return f"{FILE_BASE_URL}/size/{filename}"  # [Railway]
+        return f"{FILE_BASE_URL}/size/{os.path.basename(file_path)}"
 
-    # ถ้าไฟล์อยู่ใน output/shrimp_output → map ไปเป็น /shrimp/
     if "output\\shrimp_output" in file_path or "output/shrimp_output" in file_path:
-        filename = os.path.basename(file_path)
-        return f"{FILE_BASE_URL}/shrimp/{filename}"  # [Railway]
+        return f"{FILE_BASE_URL}/shrimp/{os.path.basename(file_path)}"
 
-    # ถ้าไฟล์อยู่ใน output/din_output → map ไปเป็น /din/
     if "output\\din_output" in file_path or "output/din_output" in file_path:
-        filename = os.path.basename(file_path)
-        return f"{FILE_BASE_URL}/din/{filename}"  # [Railway]
+        return f"{FILE_BASE_URL}/din/{os.path.basename(file_path)}"
 
-    # ถ้าไฟล์อยู่ใน output/water_output → map ไปเป็น /water/
     if "output\\water_output" in file_path or "output/water_output" in file_path:
-        filename = os.path.basename(file_path)
-        return f"{FILE_BASE_URL}/water/{filename}"  # [Railway]
+        return f"{FILE_BASE_URL}/water/{os.path.basename(file_path)}"
 
-    # fallback (กรณีอื่น ๆ)
-    return f"{FILE_BASE_URL}/{os.path.basename(file_path)}"  # [Railway]
+    return f"{FILE_BASE_URL}/{os.path.basename(file_path)}"
 
-def save_json_result(result_type, original_name, output_image=None, output_text_path=None, pond_number=None, total_larvae=None, survival_rate=None, output_video=None):
+# ------------------------------------------------------------------------------------
+# Helper: ดึงค่า length/weight จาก text_content
+# ------------------------------------------------------------------------------------
+def _extract_size_from_text(text: str):
+    matches = re.findall(r"Shrimp\s+\d+:\s*([\d.]+)\s*cm\s*/\s*([\d.]+)\s*g", text)
+    if matches:
+        lengths = [float(m[0]) for m in matches]
+        weights = [float(m[1]) for m in matches]
+        avg_length = sum(lengths) / len(lengths)
+        avg_weight = sum(weights) / len(weights)
+        return avg_length, avg_weight
+    return None, None
+
+# ------------------------------------------------------------------------------------
+# save_json_result (แก้ไขให้มี shrimp_size)
+# ------------------------------------------------------------------------------------
+def save_json_result(result_type, original_name,
+                     output_image=None, output_text_path=None,
+                     pond_number=None, total_larvae=None,
+                     survival_rate=None, output_video=None):
+
     text_content = None
     if output_text_path and os.path.exists(output_text_path):
         with open(output_text_path, 'r', encoding='utf-8') as f:
@@ -101,8 +106,18 @@ def save_json_result(result_type, original_name, output_image=None, output_text_
             result_data["output_image"] = [make_public_url(p) for p in output_image]
         else:
             result_data["output_image"] = make_public_url(output_image)
+
     if output_video:
         result_data["output_video"] = make_public_url(output_video)
+
+    # ✅ เพิ่ม shrimp_size ถ้าเป็น result_type = "size"
+    if result_type == "size":
+        length_cm, weight_avg_g = _extract_size_from_text(text_content or "")
+        result_data["shrimp_size"] = {
+            "length_cm": length_cm,
+            "weight_avg_g": weight_avg_g,
+            "image_url": result_data.get("output_image")
+        }
 
     save_dir = os.path.join(LOCAL_STORAGE_BASE, result_type)
     os.makedirs(save_dir, exist_ok=True)
@@ -115,8 +130,9 @@ def save_json_result(result_type, original_name, output_image=None, output_text_
 
     return json_path
 
-import re
-import glob
+# ------------------------------------------------------------------------------------
+# Helper: ดึง pond_id
+# ------------------------------------------------------------------------------------
 def extract_pond_id_from_filename(filename):
     match = re.search(r'pond(\d+)', filename)
     if match:
@@ -131,24 +147,24 @@ def get_latest_pond_info_for_pond(data_ponds_dir, pond_id):
     latest_file = pond_files[0]
     with open(latest_file, 'r', encoding='utf-8') as f:
         data = json.load(f)
-    pond_id = data.get("pond_id", None)
-    initial_stock = data.get("initial_stock", None)
-    return pond_id, initial_stock
+    return data.get("pond_id"), data.get("initial_stock")
 
+# ------------------------------------------------------------------------------------
+# API: /process
+# ------------------------------------------------------------------------------------
 @app.post("/process")
 async def process_files(files: List[UploadFile] = File(...)):
-    # folder input ชั่วคราว (อยู่ใน container ของ service นี้)
     os.makedirs("input_raspi1", exist_ok=True)
     os.makedirs("input_raspi2", exist_ok=True)
     os.makedirs("input_video", exist_ok=True)
 
     results = []
+    now_str = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     for file in files:
-        filename = file.filename  # ชื่อไฟล์ต้นฉบับ
+        filename = file.filename
         filename_lower = filename.lower()
         ext = os.path.splitext(filename_lower)[-1]
-        now_str = datetime.now().strftime("%Y%m%d_%H%M%S")
         print(f"📦 Received file: {filename}")
 
         try:
@@ -160,7 +176,7 @@ async def process_files(files: List[UploadFile] = File(...)):
 
                 pond_number, total_larvae = get_latest_pond_info_for_pond(DATA_PONDS_DIR, pond_id)
 
-                # ================= Shrimp Floating =================
+                # Shrimp Floating
                 if "shrimp_float" in filename_lower:
                     input_path = os.path.join("input_raspi2", f"shrimp_float_pond{pond_id}_{now_str}{ext}")
                     with open(input_path, "wb") as f:
@@ -176,23 +192,15 @@ async def process_files(files: List[UploadFile] = File(...)):
                         pond_number=pond_number,
                         total_larvae=total_larvae
                     )
-                    results.append({
-                        "type": "shrimp_floating",
-                        "filename": filename,
-                        "json": json_path
-                    })
+                    results.append({"type": "shrimp_floating", "filename": filename, "json": json_path})
 
-                # ================= Shrimp Size =================
+                # Shrimp Size
                 elif "shrimp" in filename_lower:
                     input_path = os.path.join("input_raspi1", f"shrimp_pond{pond_id}_{now_str}{ext}")
                     with open(input_path, "wb") as f:
                         f.write(content)
 
-                    output_img_path, output_txt_path = analyze_shrimp(
-                        input_path,
-                        total_larvae=total_larvae,
-                        pond_number=pond_number
-                    )
+                    output_img_path, output_txt_path = analyze_shrimp(input_path, total_larvae=total_larvae, pond_number=pond_number)
 
                     json_path = save_json_result(
                         result_type="size",
@@ -202,13 +210,9 @@ async def process_files(files: List[UploadFile] = File(...)):
                         pond_number=pond_number,
                         total_larvae=total_larvae
                     )
-                    results.append({
-                        "type": "shrimp_size",
-                        "filename": filename,
-                        "json": json_path
-                    })
+                    results.append({"type": "shrimp_size", "filename": filename, "json": json_path})
 
-                # ================= Water =================
+                # Water
                 elif "water" in filename_lower:
                     input_path = os.path.join("input_raspi2", f"water_pond{pond_id}_{now_str}{ext}")
                     with open(input_path, "wb") as f:
@@ -224,20 +228,17 @@ async def process_files(files: List[UploadFile] = File(...)):
                         pond_number=pond_number,
                         total_larvae=total_larvae
                     )
-                    results.append({
-                        "type": "water_image",
-                        "filename": filename,
-                        "json": json_path
-                    })
+                    results.append({"type": "water_image", "filename": filename, "json": json_path})
 
                 else:
                     raise HTTPException(status_code=400, detail="ชื่อไฟล์ไม่ถูกต้อง")
 
-            # ================= Video =================
+            # Video
             elif ext in [".mp4", ".avi", ".mov"]:
                 pond_id = extract_pond_id_from_filename(filename_lower)
                 if pond_id is None:
                     raise HTTPException(status_code=400, detail="ไม่พบ pond_id ในชื่อไฟล์!")
+
                 pond_number, total_larvae = get_latest_pond_info_for_pond(DATA_PONDS_DIR, pond_id)
 
                 input_path = os.path.join("input_video", f"video_pond{pond_id}_{now_str}{ext}")
@@ -254,11 +255,7 @@ async def process_files(files: List[UploadFile] = File(...)):
                     pond_number=pond_number,
                     total_larvae=total_larvae
                 )
-                results.append({
-                    "type": "shrimp_video",
-                    "filename": filename,
-                    "json": json_path
-                })
+                results.append({"type": "shrimp_video", "filename": filename, "json": json_path})
 
             else:
                 raise HTTPException(status_code=400, detail="ไม่รองรับไฟล์ประเภทนี้")
@@ -266,11 +263,7 @@ async def process_files(files: List[UploadFile] = File(...)):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"❗ Error processing {filename}: {e}")
 
-    return {
-        "status": "success",
-        "message": f"✅ ประมวลผลไฟล์สำเร็จ {len(results)} รายการ",
-        "results": results
-    }
+    return {"status": "success", "message": f"✅ ประมวลผลไฟล์สำเร็จ {len(results)} รายการ", "results": results}
 
 @app.post("/data_ponds")
 async def receive_stock_json(request: Request):

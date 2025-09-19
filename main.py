@@ -46,21 +46,24 @@ storage = LocalStorage(storage_path=LOCAL_STORAGE_BASE, base_url=FILE_BASE_URL)
 # Helper: แปลง path → public URL
 # ------------------------------------------------------------------------------------
 def make_public_url(file_path: str) -> str:
-    # normalize path ให้แน่ใจว่าเป็น /
     file_path = file_path.replace("\\", "/")
-    rel_path = os.path.basename(file_path)
 
-    if "/data/local_storage/size" in file_path:
-        return f"{FILE_BASE_URL}/size/{rel_path}"
-    if "/data/local_storage/shrimp" in file_path:
-        return f"{FILE_BASE_URL}/shrimp/{rel_path}"
-    if "/data/local_storage/din" in file_path:
-        return f"{FILE_BASE_URL}/din/{rel_path}"
-    if "/data/local_storage/water" in file_path:
-        return f"{FILE_BASE_URL}/water/{rel_path}"
+    # หา relative path จาก /data/local_storage
+    rel_path = os.path.relpath(file_path, "/data/local_storage").replace("\\", "/")
+
+    # ถ้าอยู่ใน size
+    if rel_path.startswith("size/"):
+        return f"{FILE_BASE_URL}/size/{os.path.basename(rel_path)}"
+    if rel_path.startswith("shrimp/"):
+        return f"{FILE_BASE_URL}/shrimp/{os.path.basename(rel_path)}"
+    if rel_path.startswith("din/"):
+        return f"{FILE_BASE_URL}/din/{os.path.basename(rel_path)}"
+    if rel_path.startswith("water/"):
+        return f"{FILE_BASE_URL}/water/{os.path.basename(rel_path)}"
 
     # fallback
-    return f"{FILE_BASE_URL}/{rel_path}"
+    return f"{FILE_BASE_URL}/{os.path.basename(rel_path)}"
+
 
 
 

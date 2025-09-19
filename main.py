@@ -579,6 +579,30 @@ def list_dir(path: str = ""):
         })
     return JSONResponse(items)
 
+from fastapi.responses import FileResponse
+@app.get("/view")
+def view_file(path: str):
+    """
+    ดูไฟล์ที่อยู่ใน container (เช่น JSON หรือ TXT)
+    ใช้ query param เช่น /view?path=/data/local_storage/pond_status.json
+    """
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(path, media_type="application/json")
+
+
+
+@app.get("/json")
+def read_json(path: str):
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="File not found")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading JSON: {e}")
+
 
 # =========================
 # 7) ENTRYPOINT

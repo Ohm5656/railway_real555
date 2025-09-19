@@ -540,14 +540,20 @@ def build_pond_status_json(pond_id: int) -> dict:
         shrimp_float_image = _pick_url_maybe_list(shrimp_d.get("output_image"))
 
     data = {
-        "pond_id": pond_id,
+        "pondId": str(pond_id) if pond_id is not None else None,
         "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-        "sensor": sensor_part,
-        "chemicals": minerals,
-        "water": {"color": water_color, "image_url": water_image},
-        "shrimp_float": {"image_url": shrimp_float_image},
-        "status": "normal"
+        "DO": sensor_part["do"],
+        "PH": sensor_part["ph"],
+        "Temp": sensor_part["temperature"],
+        "ColorWater": water_color,
+        "Mineral_1": minerals["Mineral_1"],
+        "Mineral_2": minerals["Mineral_2"],
+        "Mineral_3": minerals["Mineral_3"],
+        "Mineral_4": minerals["Mineral_4"],
+        "PicColorWater": water_image,
+        "PicFloatShrimp": shrimp_float_image
     }
+
     with open(POND_STATUS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     return data
@@ -569,15 +575,13 @@ def build_shrimp_size_json(pond_id: int) -> dict:
         video_url = din_d.get("output_video")
 
     data = {
-        "pond_id": pond_id,
+        "pondId": pond_id,
         "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-        "shrimp_size": {
-            "length_cm": length_cm,
-            "weight_avg_g": weight_g,
-            "image_url": size_image
-        },
-        "shrimp_feed": {"image_url": raw_image or size_image},
-        "shrimp_video_url": video_url
+        "Size_CM": length_cm,
+        "Size_gram": weight_g,
+        "SizePic": size_image,
+        "PicFood": raw_image or size_image,
+        "PicKungDinn": video_url
     }
     with open(SHRIMP_SIZE_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)

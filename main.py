@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Request
+﻿from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 import shutil
 import os
 import uuid
@@ -514,6 +514,15 @@ last_seen_data = {
     "din": None
 }
 
+last_seen_paths = {
+    "sensor": None,
+    "san": None,
+    "water": None,
+    "shrimp": None,
+    "size": None,
+    "din": None
+}
+
 # =========================
 # 4) BUILDERS
 # =========================
@@ -599,45 +608,79 @@ def build_shrimp_size_json(pond_id: int) -> dict:
 # 5) BACKGROUND LOOP
 # =========================
 async def loop_build_and_push(pond_id: int):
-    global last_seen_data
+    global last_seen_data, last_seen_paths
     while True:
         try:
-            _, sensor_d = _latest_json_in_dir(FS_SENSOR_DIR, pond_id=pond_id)
-            if sensor_d: last_seen_data["sensor"] = sensor_d
+            status_dirty = False
+            size_dirty = False
+            new_paths = {}
 
-            _, san_d = _latest_json_in_dir(FS_SAN_DIR, pond_id=pond_id)
-            if san_d: last_seen_data["san"] = san_d
+            sensor_path, sensor_d = _latest_json_in_dir(FS_SENSOR_DIR, pond_id=pond_id)
+            if sensor_d:
+                last_seen_data["sensor"] = sensor_d
+            if sensor_path:
+                new_paths["sensor"] = sensor_path
+                if sensor_path != last_seen_paths.get("sensor"):
+                    status_dirty = True
 
-            _, water_d = _latest_json_in_dir(FS_WATER_DIR, pond_id=pond_id)
-            if water_d: last_seen_data["water"] = water_d
+            san_path, san_d = _latest_json_in_dir(FS_SAN_DIR, pond_id=pond_id)
+            if san_d:
+                last_seen_data["san"] = san_d
+            if san_path:
+                new_paths["san"] = san_path
+                if san_path != last_seen_paths.get("san"):
+                    status_dirty = True
 
-            _, shrimp_d = _latest_json_in_dir(FS_SHRIMP_DIR, pond_id=pond_id)
-            if shrimp_d: last_seen_data["shrimp"] = shrimp_d
+            water_path, water_d = _latest_json_in_dir(FS_WATER_DIR, pond_id=pond_id)
+            if water_d:
+                last_seen_data["water"] = water_d
+            if water_path:
+                new_paths["water"] = water_path
+                if water_path != last_seen_paths.get("water"):
+                    status_dirty = True
 
-            _, size_d = _latest_json_in_dir(FS_SIZE_DIR, pond_id=pond_id)
-            if size_d: last_seen_data["size"] = size_d
+            shrimp_path, shrimp_d = _latest_json_in_dir(FS_SHRIMP_DIR, pond_id=pond_id)
+            if shrimp_d:
+                last_seen_data["shrimp"] = shrimp_d
+            if shrimp_path:
+                new_paths["shrimp"] = shrimp_path
+                if shrimp_path != last_seen_paths.get("shrimp"):
+                    status_dirty = True
 
-            _, din_d = _latest_json_in_dir(FS_DIN_DIR, pond_id=pond_id)
-            if din_d: last_seen_data["din"] = din_d
+            size_path, size_d = _latest_json_in_dir(FS_SIZE_DIR, pond_id=pond_id)
+            if size_d:
+                last_seen_data["size"] = size_d
+            if size_path:
+                new_paths["size"] = size_path
+                if size_path != last_seen_paths.get("size"):
+                    size_dirty = True
 
-            status_json = build_pond_status_json(pond_id)
-            size_json   = build_shrimp_size_json(pond_id)
+            din_path, din_d = _latest_json_in_dir(FS_DIN_DIR, pond_id=pond_id)
+            if din_d:
+                last_seen_data["din"] = din_d
+            if din_path:
+                new_paths["din"] = din_path
+                if din_path != last_seen_paths.get("din"):
+                    size_dirty = True
 
-            # ✅ ส่งก็ต่อเมื่อมีการตั้งค่า ENV ไว้
-            if APP_STATUS_URL:
-                _send_json_to(APP_STATUS_URL, status_json)
-            if APP_SIZE_URL:
-                _send_json_to(APP_SIZE_URL, size_json)
+            if status_dirty or size_dirty:
+                if status_dirty:
+                    status_json = build_pond_status_json(pond_id)
+                    if APP_STATUS_URL:
+                        _send_json_to(APP_STATUS_URL, status_json)
+                if size_dirty:
+                    size_json = build_shrimp_size_json(pond_id)
+                    if APP_SIZE_URL:
+                        _send_json_to(APP_SIZE_URL, size_json)
+
+                for key, value in new_paths.items():
+                    last_seen_paths[key] = value
 
         except Exception as e:
-            print("❌ Loop error:", e)
+            print("?? Loop error:", e)
 
         await asyncio.sleep(5)
 
-
-@app.on_event("startup")
-async def start_background():
-    asyncio.create_task(loop_build_and_push(pond_id=1))
 
 # =========================
 # 6) ENDPOINTS
@@ -719,6 +762,8 @@ def read_json(path: str):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
+
+
 
 
 

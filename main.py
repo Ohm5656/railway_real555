@@ -4,7 +4,7 @@ import os
 import uuid
 import json
 from typing import List
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import requests
 import math
 import paho.mqtt.client as mqtt
@@ -55,6 +55,14 @@ os.makedirs(LOCAL_STORAGE_BASE, exist_ok=True)
 os.makedirs(DATA_PONDS_DIR, exist_ok=True)
 
 storage = LocalStorage(storage_path=LOCAL_STORAGE_BASE, base_url=FILE_BASE_URL)
+
+BANGKOK_TZ = timezone(timedelta(hours=7))
+
+def now_bangkok():
+    return datetime.now(BANGKOK_TZ)
+
+def format_timestamp(dt: datetime | None = None) -> str:
+    return (dt or now_bangkok()).strftime("%Y-%m-%dT%H:%M:%S")
 
 # ------------------------------------------------------------------------------------
 # Helper: แปลง path → public URL
@@ -167,7 +175,7 @@ def save_json_result(result_type, original_name,
         "id": str(uuid.uuid4()),
         "type": result_type,
         "original_name": original_name,
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": format_timestamp(),
         "pond_number": pond_number,
         "total_larvae": total_larvae,
         "survival_rate": survival_rate,
@@ -215,7 +223,7 @@ def save_json_result(result_type, original_name,
     save_dir = os.path.join(LOCAL_STORAGE_BASE, result_type)
     os.makedirs(save_dir, exist_ok=True)
 
-    json_filename = f"{os.path.splitext(original_name)[0]}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    json_filename = f"{os.path.splitext(original_name)[0]}_{now_bangkok().strftime('%Y%m%d_%H%M%S')}.json"
     json_path = os.path.join(save_dir, json_filename)
 
     with open(json_path, 'w', encoding='utf-8') as f:
@@ -252,7 +260,7 @@ async def process_files(files: List[UploadFile] = File(...)):
     os.makedirs("input_video", exist_ok=True)
 
     results = []
-    now_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    now_str = now_bangkok().strftime("%Y%m%d_%H%M%S")
 
     for file in files:
         filename = file.filename
@@ -371,7 +379,7 @@ async def receive_stock_json(request: Request):
         raise HTTPException(status_code=400, detail="Missing required data fields")
 
     pond_id = data['pond_id']
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    timestamp = now_bangkok().strftime('%Y%m%d_%H%M%S')
     filename = f"pond_{pond_id}_{timestamp}.json"
     file_path = os.path.join(DATA_PONDS_DIR, filename)
 
@@ -399,7 +407,7 @@ async def receive_sensor_data(request: Request):
     if not all(k in data for k in required_keys):
         raise HTTPException(status_code=400, detail="Missing required fields")
 
-    filename = f"sensor_{datetime.now().strftime('%Y%m%dT%H%M%S%f')}.json"
+    filename = f"sensor_{now_bangkok().strftime('%Y%m%dT%H%M%S%f')}.json"
     file_path = os.path.join(SENSOR_DIR, filename)
 
     try:
@@ -541,7 +549,7 @@ def build_pond_status_json(pond_id: int) -> dict:
 
     data = {
         "pondId": str(pond_id) if pond_id is not None else None,
-        "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        "timestamp": format_timestamp(),
         "DO": sensor_part["do"],
         "PH": sensor_part["ph"],
         "Temp": sensor_part["temperature"],
@@ -551,7 +559,7 @@ def build_pond_status_json(pond_id: int) -> dict:
         "Mineral_3": minerals["Mineral_3"],
         "Mineral_4": minerals["Mineral_4"],
         "PicColorWater": water_image,
-        "PicFloatShrimp": shrimp_float_image
+        "PicKungOnWater": shrimp_float_image
     }
 
     with open(POND_STATUS_FILE, "w", encoding="utf-8") as f:
@@ -576,7 +584,7 @@ def build_shrimp_size_json(pond_id: int) -> dict:
 
     data = {
         "pondId": pond_id,
-        "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        "timestamp": format_timestamp(),
         "Size_CM": length_cm,
         "Size_gram": weight_g,
         "SizePic": size_image,
@@ -711,3 +719,10 @@ def read_json(path: str):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
+
+
+
+
+
+
+

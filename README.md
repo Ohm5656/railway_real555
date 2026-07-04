@@ -30,7 +30,7 @@ Built for innovation projects, real farms, and next-generation aquaculture start
 
 ---
 
-## 🧩 **How It Works**
+##  **How It Works**
 
 ```
 Raspberry Pi Cameras
@@ -114,7 +114,7 @@ http://localhost:8000/docs
 
 ---
 
-## ☁️ **Cloud Deployment**
+##  **Cloud Deployment**
 
 ShrimpSense AI backend is optimized for:
 
@@ -152,6 +152,3 @@ Our goal is to reduce farming risk, improve shrimp survival rates, and help farm
 ---
 
 
-<p align="center">
-🚀 Turning shrimp farms into intelligent ecosystems with AI
-</p>
